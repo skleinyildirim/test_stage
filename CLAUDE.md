@@ -8,7 +8,7 @@
 
 ### Ta façon de m'accompagner
 
-1. **Je code, tu guides.** Pas de gros blocs de code à ma place. Donne-moi l'étape suivante, un indice ou un petit squelette avec des `// TODO`. Si je demande explicitement le code, écris-le puis explique-le.
+1. **Je code, tu guides.** Pas de gros blocs de code à ma place. Donne-moi l'étape suivante : quoi faire, dans quel fichier, et **où me documenter** (page de doc, mots-clés à chercher, version vérifiée). **Pas de squelette de code avec des `// TODO`** : je préfère le trouver moi-même. Si je demande explicitement le code, écris-le puis explique-le.
 2. **Une seule petite étape à la fois**, avec un résultat visible (une route qui répond, une page qui s'affiche) et la commande pour le vérifier (`curl`, navigateur, `psql`).
 3. **Le « pourquoi » en 3 à 5 lignes** à chaque nouveau concept, avec une comparaison avec le C quand c'est possible.
 4. **Des visuels** (schémas ASCII, tableaux) pour : le trajet d'une requête (front → API → service → Prisma → Postgres), les modules Nest, les relations de la base, les composants React.
@@ -65,7 +65,7 @@ Ne passe à la couche suivante que si la précédente marche et que je peux l'ex
 | 7 | **TipTap** : modèle `Note` lié à `User`, éditeur riche, contenu JSON, sauvegarde | j'écris une note, elle est enregistrée |
 | 8 | **Bonus** : extension TipTap maison, tests Jest, README avec capture | repo présentable |
 
-**Où j'en suis :** couche 0 (à mettre à jour au fil du projet).
+**Où j'en suis :** couche 2 en cours. Faits : Postgres 17 dans Docker (couche 0), `GET /health` (couche 1), modèle `User` + migration `init` + client généré dans `src/generated/prisma`. Reste : `PrismaService` (adaptateur pg, `DATABASE_URL` chargée via `dotenv`, module qui l'exporte), puis commit de fin de couche. (À mettre à jour au fil du projet.)
 
 ## Pièges déjà rencontrés (à ne pas refaire)
 
@@ -83,6 +83,11 @@ Ne passe à la couche suivante que si la précédente marche et que je peux l'ex
 - **`async` renvoie toujours une promesse** : le type de retour d'un controller est alors `Promise<...>`.
 - **Une fonction sans parenthèses n'est pas appelée** (`findMany` ≠ `findMany()`).
 - **Dans un shell, `< >` sont des redirections** : ne les recopie pas autour des valeurs d'exemple.
+- **`npm` et `npx` agissent sur le dossier courant** : un `npm install` lancé à la racine crée un `package.json` et un `node_modules` parasites (déjà arrivé deux fois). Fais `pwd` avant, et installe depuis `backend/`. La racine n'a pas de `package.json`. Le `.gitignore` racine contient `.env` et `node_modules`.
+- **`npx prisma init` laisse des fichiers en trop** : dossiers `.agents/`, `.claude/`, `.windsurf/` et `skills-lock.json` à supprimer. Il crée aussi `prisma7.config.ts`, à **renommer en `prisma.config.ts`**, sinon Prisma 7 ne le trouve pas. Il met `output` hors de `src/` (`../generated/prisma`) : corrige en `../src/generated/prisma`, et `.gitignore` en `/src/generated/prisma`.
+- **`dotenv` s'installe explicitement** dans `backend/` (`prisma.config.ts` l'importe). Il n'est présent qu'en dépendance indirecte de Prisma sinon.
+- **`npx nest g ...`** : le CLI Nest est une dépendance locale du projet, donc `npx` (ou un script de `package.json`) est nécessaire.
+- **`@default(uuid())` est généré par le client Prisma**, pas par Postgres : la colonne `id` n'a pas de défaut en SQL.
 
 ## Conventions
 
