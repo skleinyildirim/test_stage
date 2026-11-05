@@ -65,7 +65,7 @@ Ne passe à la couche suivante que si la précédente marche et que je peux l'ex
 | 7 | **TipTap** : modèle `Note` lié à `User`, éditeur riche, contenu JSON, sauvegarde | j'écris une note, elle est enregistrée |
 | 8 | **Bonus** : extension TipTap maison, tests Jest, README avec capture | repo présentable |
 
-**Où j'en suis :** couche 2 en cours. Faits : Postgres 17 dans Docker (couche 0), `GET /health` (couche 1), modèle `User` + migration `init` + client généré dans `src/generated/prisma`. Reste : `PrismaService` (adaptateur pg, `DATABASE_URL` chargée via `dotenv`, module qui l'exporte), puis commit de fin de couche. (À mettre à jour au fil du projet.)
+**Où j'en suis :** couche 2 terminée, prochaine étape : couche 3 (inscription). Faits : Postgres 17 dans Docker (couche 0), `GET /health` (couche 1), modèle `User` + migration `init`, client généré dans `src/generated/prisma`, `PrismaService` (adaptateur pg, `DATABASE_URL` chargée par `import 'dotenv/config'` en tête de `main.ts`, exporté par `PrismaModule`). Notions acquises : modules Nest (`providers`/`exports`/`imports`), injection de dépendances, hooks `onModuleInit`/`onModuleDestroy`, migrations. (À mettre à jour au fil du projet.)
 
 ## Pièges déjà rencontrés (à ne pas refaire)
 
@@ -88,6 +88,10 @@ Ne passe à la couche suivante que si la précédente marche et que je peux l'ex
 - **`dotenv` s'installe explicitement** dans `backend/` (`prisma.config.ts` l'importe). Il n'est présent qu'en dépendance indirecte de Prisma sinon.
 - **`npx nest g ...`** : le CLI Nest est une dépendance locale du projet, donc `npx` (ou un script de `package.json`) est nécessaire.
 - **`@default(uuid())` est généré par le client Prisma**, pas par Postgres : la colonne `id` n'a pas de défaut en SQL.
+- **`$connect()` ne vérifie pas la base avec l'adaptateur pg** (Prisma 7) : l'API démarre même si Postgres est arrêté (testé). L'erreur n'apparaît qu'à la première requête.
+- **`docker compose down -v` vide la base** (le volume est supprimé). Les migrations la reconstruisent (`npx prisma migrate dev`), mais pas les données. Utilise `down` sans `-v`.
+- **Nom de clé de l'adaptateur** : `new PrismaPg({ connectionString: ... })`. Le nom vient de `pg` (`PoolConfig`, voir `node_modules/@types/pg`). `{ x }` est un raccourci pour `{ x: x }`, donc la clé reprend le nom de la variable.
+- **Les noms sont sensibles à la casse** : `onModuleDestroy` ≠ `OnModuleDestroy` (Nest ne trouve pas le hook).
 
 ## Conventions
 
