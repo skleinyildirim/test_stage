@@ -65,7 +65,7 @@ Ne passe à la couche suivante que si la précédente marche et que je peux l'ex
 | 7 | **TipTap** : modèle `Note` lié à `User`, éditeur riche, contenu JSON, sauvegarde | j'écris une note, elle est enregistrée |
 | 8 | **Bonus** : extension TipTap maison, tests Jest, README avec capture | repo présentable |
 
-**Où j'en suis :** couche 2 terminée, prochaine étape : couche 3 (inscription). Faits : Postgres 17 dans Docker (couche 0), `GET /health` (couche 1), modèle `User` + migration `init`, client généré dans `src/generated/prisma`, `PrismaService` (adaptateur pg, `DATABASE_URL` chargée par `import 'dotenv/config'` en tête de `main.ts`, exporté par `PrismaModule`). Notions acquises : modules Nest (`providers`/`exports`/`imports`), injection de dépendances, hooks `onModuleInit`/`onModuleDestroy`, migrations. (À mettre à jour au fil du projet.)
+**Où j'en suis :** couche 4 en cours. Fait : paquets `@nestjs/jwt`, `@nestjs/passport`, `passport`, `passport-jwt` installés ; `JWT_SECRET` dans `backend/.env` et `backend/.env.example` ; `JwtModule.register` dans `AuthModule` (secret vérifié au démarrage, `expiresIn: 3600`) ; `LoginDto` ; `POST /auth/login` renvoie un `access_token` (testé avec `curl`). **Reste (prochaine séance)** : tester les deux 401 (mauvais mot de passe, email inconnu), puis `JwtStrategy` (fichier `src/auth/jwt.strategy.ts`), `JwtAuthGuard`, route protégée `GET /auth/me` (401 sans token, 200 avec), puis commit de fin de couche. Avant : couche 3 terminée. Faits : Postgres 17 dans Docker (couche 0), `GET /health` (couche 1), modèle `User` + migration `init`, client généré dans `src/generated/prisma`, `PrismaService` (couche 2), `POST /auth/register` (couche 3) : `RegisterDto` validé (`@IsEmail()`, `@IsString()`, `@MinLength(8)`, `@Matches` mot de passe fort), `ValidationPipe` global dans `main.ts`, hash bcrypt (10 tours) dans `AuthService`, doublon d'email → `409 Conflict`. Notions acquises : modules Nest (`providers`/`exports`/`imports`), injection de dépendances, hooks `onModuleInit`/`onModuleDestroy`, migrations, DTO et validation, hash et sel, `try`/`catch` et exceptions HTTP. (À mettre à jour au fil du projet.)
 
 ## Pièges déjà rencontrés (à ne pas refaire)
 
@@ -92,6 +92,25 @@ Ne passe à la couche suivante que si la précédente marche et que je peux l'ex
 - **`docker compose down -v` vide la base** (le volume est supprimé). Les migrations la reconstruisent (`npx prisma migrate dev`), mais pas les données. Utilise `down` sans `-v`.
 - **Nom de clé de l'adaptateur** : `new PrismaPg({ connectionString: ... })`. Le nom vient de `pg` (`PoolConfig`, voir `node_modules/@types/pg`). `{ x }` est un raccourci pour `{ x: x }`, donc la clé reprend le nom de la variable.
 - **Les noms sont sensibles à la casse** : `onModuleDestroy` ≠ `OnModuleDestroy` (Nest ne trouve pas le hook).
+- **`imports` d'un module n'accepte que des modules** : mets `PrismaModule` dans `imports`, pas `PrismaService` (`InvalidClassModuleException`). Ne suis pas le conseil « move to providers » du message : ça créerait une 2ᵉ instance.
+- **Chaque fichier importe ce qu'il utilise** : `Cannot find name 'X'` (TS2304) = import manquant. Méfie-toi de l'auto-import de l'éditeur (il a ajouté `import { hash } from 'crypto'` à tort) : vérifie le paquet.
+- **Les décorateurs `class-validator` s'écrivent avec parenthèses** : `@IsEmail()`, pas `@IsEmail`. Sans `ValidationPipe` global, ils ne vérifient rien (on a obtenu 201 avec un faux email).
+- **`@Matches` : regex littérale, sans guillemets** : `/^...$/`. Avec `'/^...$/'` (texte), les `/` deviennent des caractères à trouver et tout mot de passe est refusé. Le message va dans un objet d'options en 2ᵉ argument.
+- **`@Body()` sans argument = tout le corps** : un seul paramètre typé par un DTO (classe). Un type écrit en ligne est effacé à l'exécution et ne valide rien.
+- **Prisma est paresseux** : `user.create(...)` sans `await` n'envoie rien à la base (0 ligne, aucune erreur).
+- **Stocke la variable hashée, pas l'originale** : on a écrit `password: password` à la place de `password: hashPass`, donc le mot de passe était en clair en base. Le hash va dans le service, pas dans le contrôleur.
+- **`catch (X)` ne filtre pas par type** : `X` n'est que le nom de la variable. Pour traiter un doublon : `error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002'`, puis `throw new ConflictException(...)` ; relance les autres erreurs avec `throw error`. `Prisma` s'importe depuis `../generated/prisma/client.js`, pas depuis `@prisma/client`.
+- **`DELETE FROM "User";` sans `WHERE` supprime toutes les lignes** : à n'utiliser qu'avec des données de test.
+- **`\d "User"` montre la structure** de la table ; `SELECT ... FROM "User";` montre les lignes. N'affiche pas la colonne `password` sans raison.
+- **Commande `curl` sur plusieurs lignes** : le `\` doit être le dernier caractère de la ligne (pas d'espace après), sinon mets tout sur une ligne.
+- **`bcrypt.compare` est asynchrone : sans `await`, il renvoie une promesse toujours « vraie »**, donc n'importe quel mot de passe est accepté (bug de sécurité que TypeScript ne signale pas). Utilise `await`. Compare un mot de passe avec un hash par `compare`, jamais par `===` (le sel rend deux hash différents).
+- **`private readonly` devant le paramètre du constructeur** pour qu'il devienne un champ (`this.jwt`). Sans, c'est une variable locale perdue après le constructeur.
+- **`JwtModule` dans `imports` d'un module, `JwtService` dans le constructeur d'un service** : ne confonds pas les deux. `JwtService` vient de `@nestjs/jwt` : rien à générer avec `nest generate`.
+- **`{ x }` est un raccourci réservé à un simple nom de variable** : `{ process.env.X }` est invalide, il faut `{ clé: process.env.X }`. La clé de `JwtModule.register` est `secret`, celle de `signOptions` est `expiresIn` (un nombre = secondes).
+- **Vérifier une variable d'environnement dans un module** : fais-le au niveau du fichier, avant `@Module` (`const` + `if` + `throw`), pas dans les arguments du décorateur. `dotenv` est chargé en 1ʳᵉ ligne de `main.ts`, donc `process.env` est déjà rempli.
+- **Un DTO par usage** : `RegisterDto` (mot de passe fort) pour l'inscription, `LoginDto` (`@IsEmail()`, `@IsString()` seulement) pour la connexion. Même message d'erreur (401) pour un email inconnu et un mauvais mot de passe.
+- **Un JWT est signé, pas chiffré** : le payload (`sub`, `iat`, `exp`) est lisible par tous. N'y mets que l'id de l'utilisateur, jamais le mot de passe ni son hash.
+- **`npm ls` n'installe rien** : il liste ce qui est déjà installé. `(empty)` = paquets pas encore installés.
 
 ## Conventions
 
