@@ -3,6 +3,7 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { PrismaModule } from '../prisma/prisma.module';
 import { JwtModule } from '@nestjs/jwt';
+import { JwtStrategy } from './jwt.strategy';
 
 const jwt = process.env.JWT_SECRET
 if (!jwt) {
@@ -10,8 +11,8 @@ if (!jwt) {
 }
 
 @Module({
-  providers: [AuthService],
+  providers: [AuthService, JwtStrategy],
   controllers: [AuthController],
-  imports: [PrismaModule, JwtModule.register({ secret: jwt, signOptions: {expiresIn: 3600} })]
+  imports: [PrismaModule, JwtModule.register({ secret: jwt, signOptions: {expiresIn: '60s'} })]
 })
 export class AuthModule {}
