@@ -29,4 +29,10 @@ jobs:
         run: npm run build
       - name: tests
         run: npm test
-      
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "ci-${{ github.ref }}"
+  cancel-in-progress: true
