@@ -43,6 +43,7 @@
 mininotes/
 ├── frontend/             # Vite + React + TypeScript
 ├── backend/              # NestJS + Prisma
+├── .github/workflows/    # CI GitHub Actions (à créer)
 ├── docker-compose.yml
 ├── .env.example          # modèle des variables (le vrai .env n'est jamais commité)
 ├── CLAUDE.md
@@ -62,10 +63,11 @@ Ne passe à la couche suivante que si la précédente marche et que je peux l'ex
 | 4 | **Connexion** : `POST /auth/login` renvoie un JWT ; guard JWT ; `GET /auth/me` protégée | 401 sans token, 200 avec token |
 | 5 | **Front, connexion** : pages Register et Login, token stocké, appel de `/auth/me`, route protégée avec React Router | je me connecte dans le navigateur |
 | 6 | **Tout dans Docker** : Dockerfile du back et du front, services `db`, `backend`, `frontend` dans le compose | `docker compose up` lance tout |
+| 6b | **CI** : workflow GitHub Actions `.github/workflows/ci.yml` (install, `prisma generate`, lint, build, tests) | un ✔ vert sur GitHub |
 | 7 | **TipTap** : modèle `Note` lié à `User`, éditeur riche, contenu JSON, sauvegarde | j'écris une note, elle est enregistrée |
 | 8 | **Bonus** : extension TipTap maison, tests Jest, README avec capture | repo présentable |
 
-**Où j'en suis :** couche 4 en cours. Fait : paquets `@nestjs/jwt`, `@nestjs/passport`, `passport`, `passport-jwt` installés ; `JWT_SECRET` dans `backend/.env` et `backend/.env.example` ; `JwtModule.register` dans `AuthModule` (secret vérifié au démarrage, `expiresIn: 3600`) ; `LoginDto` ; `POST /auth/login` renvoie un `access_token` (testé avec `curl`). **Reste (prochaine séance)** : tester les deux 401 (mauvais mot de passe, email inconnu), puis `JwtStrategy` (fichier `src/auth/jwt.strategy.ts`), `JwtAuthGuard`, route protégée `GET /auth/me` (401 sans token, 200 avec), puis commit de fin de couche. Avant : couche 3 terminée. Faits : Postgres 17 dans Docker (couche 0), `GET /health` (couche 1), modèle `User` + migration `init`, client généré dans `src/generated/prisma`, `PrismaService` (couche 2), `POST /auth/register` (couche 3) : `RegisterDto` validé (`@IsEmail()`, `@IsString()`, `@MinLength(8)`, `@Matches` mot de passe fort), `ValidationPipe` global dans `main.ts`, hash bcrypt (10 tours) dans `AuthService`, doublon d'email → `409 Conflict`. Notions acquises : modules Nest (`providers`/`exports`/`imports`), injection de dépendances, hooks `onModuleInit`/`onModuleDestroy`, migrations, DTO et validation, hash et sel, `try`/`catch` et exceptions HTTP. (À mettre à jour au fil du projet.)
+**Où j'en suis :** couche 4 presque terminée. **Contexte : entretien dans environ un jour et demi (à partir du 2026-11-06) ; priorité actuelle : préparer les questions CI/CD (cours en artifact + workflow `.github/workflows/ci.yml` sur ce dépôt), puis revenir aux couches.** Fait : `JwtStrategy`, `JwtAuthGuard` et route `GET /auth/me` écrits (ils compilent, à tester) ; paquets `@nestjs/jwt`, `@nestjs/passport`, `passport`, `passport-jwt` installés ; `JWT_SECRET` dans `backend/.env` et `backend/.env.example` ; `JwtModule.register` dans `AuthModule` (secret vérifié au démarrage, `expiresIn: 3600`) ; `LoginDto` ; `POST /auth/login` renvoie un `access_token` (testé avec `curl`). **Reste** : tester les deux 401 de `login` (mauvais mot de passe, email inconnu) et `GET /auth/me` (401 sans token ou avec un faux token, 200 avec un vrai token), puis commit de fin de couche. Avant : couche 3 terminée. Faits : Postgres 17 dans Docker (couche 0), `GET /health` (couche 1), modèle `User` + migration `init`, client généré dans `src/generated/prisma`, `PrismaService` (couche 2), `POST /auth/register` (couche 3) : `RegisterDto` validé (`@IsEmail()`, `@IsString()`, `@MinLength(8)`, `@Matches` mot de passe fort), `ValidationPipe` global dans `main.ts`, hash bcrypt (10 tours) dans `AuthService`, doublon d'email → `409 Conflict`. Notions acquises : modules Nest (`providers`/`exports`/`imports`), injection de dépendances, hooks `onModuleInit`/`onModuleDestroy`, migrations, DTO et validation, hash et sel, `try`/`catch` et exceptions HTTP. (À mettre à jour au fil du projet.)
 
 ## Pièges déjà rencontrés (à ne pas refaire)
 
@@ -111,6 +113,8 @@ Ne passe à la couche suivante que si la précédente marche et que je peux l'ex
 - **Un DTO par usage** : `RegisterDto` (mot de passe fort) pour l'inscription, `LoginDto` (`@IsEmail()`, `@IsString()` seulement) pour la connexion. Même message d'erreur (401) pour un email inconnu et un mauvais mot de passe.
 - **Un JWT est signé, pas chiffré** : le payload (`sub`, `iat`, `exp`) est lisible par tous. N'y mets que l'id de l'utilisateur, jamais le mot de passe ni son hash.
 - **`npm ls` n'installe rien** : il liste ce qui est déjà installé. `(empty)` = paquets pas encore installés.
+- **Ne rappelle jamais `validate` toi-même** : Passport l'appelle après avoir vérifié le token (signature, expiration). Dans la route protégée, lis `req.user` (et non `req.userId`). Le guard décide si la requête passe, la stratégie dit comment vérifier, `validate` dit quoi garder.
+- **CI : le client Prisma n'est pas commité** (`src/generated/prisma` est dans le `.gitignore`), donc le pipeline doit lancer `npx prisma generate` avant le build. Utilise `npm ci` (pas `npm install`) et `working-directory: backend`. Les secrets vont dans les GitHub Secrets, jamais dans le YAML.
 
 ## Conventions
 
